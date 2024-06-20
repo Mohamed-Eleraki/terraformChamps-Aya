@@ -1,88 +1,48 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
-variable "bucket_name" {
-  type    = string
-  default = "terraform-workshop-aya"
-}
-
-variable "environment" {
-  type    = string
-  default = "terraformChamps"
-}
-
-variable "owner" {
-  type    = string
-  default = "aya"
-}
-
-terraform {
-  backend "s3" {
-    bucket = "erakiterrafromstatefiles"
-    key    = "project1/statefiles/statefile.tfstate"
-    region = "us-east-1"
-  }
-}
-
-resource "aws_s3_bucket" "terraformbucket" {
-  bucket = var.bucket_name
+resource "aws_s3_bucket" "s3_tf_test_bucket" {
+  bucket = "bucket-one50001"
+  force_destroy = true
 
   tags = {
-    "Environment" = var.environment
-    "Owner"       = var.owner
+    Name        = "aya"
+    Environment = "terraformChamps"
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "block_public_access" {
-  bucket = aws_s3_bucket.terraformbucket.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+resource "aws_s3_object" "s3_tf_test_logs_directory" {
+  bucket = aws_s3_bucket.s3_tf_test_bucket.bucket
+  key    = "logs/" # This creates the directory
 }
 
-resource "aws_s3_bucket_versioning" "versioning" {
-  bucket = aws_s3_bucket.terraformbucket.id
+resource "aws_iam_role" "ec2_s3_full_access" {
+  name = "EC2S3FullAccessRole"
 
-  versioning_configuration {
-    status = "Enabled"
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "encryption" {
-  bucket = aws_s3_bucket.terraformbucket.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-    bucket_key_enabled = true
-  }
+resource "aws_iam_role_policy_attachment" "ec2_s3_full_access" {
+  role       = aws_iam_role.ec2_s3_full_access.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "lifecycle" {
-  bucket = aws_s3_bucket.terraformbucket.id
-
-  rule {
-    id     = "expire object after 7 days"
-    status = "Enabled"
-
-    expiration {
-      days = 7
-    }
-  }
+resource "aws_iam_instance_profile" "ec2_s3_instance_profile" {
+  name = "EC2S3InstanceProfile"
+  role = aws_iam_role.ec2_s3_full_access.name
 }
 
-resource "aws_s3_bucket_ownership_controls" "ownership_controls" {
-  bucket = aws_s3_bucket.terraformbucket.id
+resource "aws_instance" "example" { # Please update resouce name
+  ami           = "ami-08a0d1e16fc3f61ea"
+  instance_type = "t2.micro"
 
-  rule {
-    object_ownership = "BucketOwnerEnforced"
-  }
+  iam_instance_profile = aws_iam_instance_profile.ec2_s3_instance_profile.name
 }
-
-
-
-    

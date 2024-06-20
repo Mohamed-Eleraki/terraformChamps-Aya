@@ -1,0 +1,5 @@
+
+.terraform/terraform.tfstate
+*.1_x5
+*.hcl
+/.terraform
